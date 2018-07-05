@@ -191,7 +191,7 @@ class ModelCluster (
      * Note this is currently defined in terms of the size of the most over-capacity node in the cluster
      */
     fun calculateRisk(): Double = destinationNodes
-            .collect { it.calculateNormalizedNodeUsage() }
+            .map { it.calculateNormalizedNodeUsage() }
             .max()
             ?: 0.0
 
