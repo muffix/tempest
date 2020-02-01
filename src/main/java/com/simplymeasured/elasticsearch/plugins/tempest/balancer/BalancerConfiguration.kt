@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeFilters
 import org.elasticsearch.cluster.routing.RoutingNode
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider
+import org.elasticsearch.common.inject.Inject
 import org.elasticsearch.common.settings.ClusterSettings
 import org.elasticsearch.common.settings.Setting
 import org.elasticsearch.common.settings.Setting.*
@@ -39,9 +40,8 @@ import org.elasticsearch.common.settings.Settings
 /**
  * Wrapper class for handling and providing defaults to relevant settings
  */
-class BalancerConfiguration(
-        settings: Settings,
-        clusterSettings: ClusterSettings) {
+class BalancerConfiguration
+@Inject constructor(settings: Settings, clusterSettings: ClusterSettings) {
 
     var concurrentRebalance: Int = CONCURRENT_REBALANCE_SETTING.get(settings)
     var excludeGroup: Settings = EXCLUDE_GROUP_SETTING.get(settings)

@@ -27,7 +27,9 @@ package com.simplymeasured.elasticsearch.plugins.tempest
 import com.carrotsearch.randomizedtesting.RandomizedContext
 import com.carrotsearch.randomizedtesting.RandomizedTest.getRandom
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite
-import com.simplymeasured.elasticsearch.plugins.tempest.balancer.*
+import com.simplymeasured.elasticsearch.plugins.tempest.balancer.BalancerConfiguration
+import com.simplymeasured.elasticsearch.plugins.tempest.balancer.IndexGroupPartitioner
+import com.simplymeasured.elasticsearch.plugins.tempest.balancer.ShardSizeCalculator
 import org.eclipse.collections.api.map.MutableMap
 import org.eclipse.collections.impl.factory.Lists
 import org.eclipse.collections.impl.factory.Maps
@@ -47,13 +49,14 @@ import org.elasticsearch.common.settings.ClusterSettings
 import org.elasticsearch.common.settings.Settings
 import org.elasticsearch.index.shard.ShardId
 import org.elasticsearch.test.gateway.NoopGatewayAllocator
-import org.joda.time.DateTime
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.Mockito.mock
+import org.mockito.stubbing.Answer
 import java.security.AccessController
 import java.security.PrivilegedAction
+import kotlin.math.exp
 
 /**
  * Created by awhite on 5/1/16.
@@ -93,17 +96,16 @@ class TempestShardsAllocatorTests : ESAllocationTestCase() {
                 .build()
 
         val shardSizes = Maps.mutable.empty<String, Long>()
-        val testClusterInfo = ClusterInfo(
-                ImmutableOpenMap.of<String, DiskUsage>(),
-                ImmutableOpenMap.of<String, DiskUsage>(),
-                ImmutableOpenMap.of<String, Long>(),
-                ImmutableOpenMap.of<ShardRouting, String>())
         val mockClusterInfoService = mock(ClusterInfoService::class.java)
         val mockClusterSettings = ClusterSettings(settings, Sets.mutable.ofAll(allSettings))
         val indexGroupPartitioner = IndexGroupPartitioner(settings, mockClusterSettings)
         val shardSizeCalculator = ShardSizeCalculator(settings, mockClusterSettings, indexGroupPartitioner)
         val balancerConfiguration = BalancerConfiguration(settings, mockClusterSettings)
-        Mockito.`when`(mockClusterInfoService.clusterInfo).thenReturn(testClusterInfo)
+        Mockito.`when`(mockClusterInfoService.clusterInfo).then { ClusterInfo(
+                ImmutableOpenMap.of<String, DiskUsage>(),
+                ImmutableOpenMap.of<String, DiskUsage>(),
+                ImmutableOpenMap.builder<String, Long>().putAll(shardSizes).build(),
+                ImmutableOpenMap.of<ShardRouting, String>()) }
 
         val tempestShardsAllocator = TempestShardsAllocator(
                 settings = settings,
@@ -118,80 +120,70 @@ class TempestShardsAllocatorTests : ESAllocationTestCase() {
                 tempestShardsAllocator,
                 mockClusterInfoService)
 
-        var (routingTable, clusterState) = createCluster(strategy)
+        var clusterState = createCluster(strategy)
         println(tempestShardsAllocator.lastClusterBalanceScore)
 
-        routingTable.allShards().forEach { assertEquals(ShardRoutingState.STARTED, it.state()) }
-        assignRandomShardSizes(routingTable, shardSizes)
+        clusterState.routingTable.allShards().forEach { assertEquals(ShardRoutingState.STARTED, it.state()) }
+        assignRandomShardSizes(clusterState.routingTable, shardSizes)
         println(tempestShardsAllocator.lastClusterBalanceScore)
 
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable()
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build()
+        clusterState = strategy.reroute(clusterState, "reroute")
 
-        while (clusterState.routingNodes.shardsWithState(ShardRoutingState.INITIALIZING).isEmpty().not()) {
-            routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes.shardsWithState(ShardRoutingState.INITIALIZING)).routingTable()
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build()
+        while (clusterState.routingNodes.shardsWithState(ShardRoutingState.INITIALIZING).isNotEmpty()) {
+            clusterState = strategy.applyStartedShards(clusterState, clusterState.routingNodes.shardsWithState(ShardRoutingState.INITIALIZING))
             println(tempestShardsAllocator.lastClusterBalanceScore)
         }
     }
 
-    protected fun createCluster(strategy: MockAllocationService): Pair<RoutingTable, ClusterState> {
+    private fun createCluster(strategy: MockAllocationService): ClusterState {
 
         val indexes = (1..(5 + randomInt(5))).map { createRandomIndex(Integer.toHexString(it)) }
         val metaData = MetaData.builder().apply { indexes.forEach { this.put(it) } }.build()
         val routingTable = RoutingTable.builder().apply { indexes.forEach { this.addAsNew(metaData.index(it.index())) } }.build()
 
         val clusterState = ClusterState.builder(
-                org.elasticsearch.cluster.ClusterName.DEFAULT)
+                ClusterName.DEFAULT)
                 .metaData(metaData)
                 .routingTable(routingTable)
                 .nodes(DiscoveryNodes.builder().apply { (1..(3 + randomInt(100))).forEach { this.add(newNode("node${it}")) } })
                 .build()
 
-        return startupCluster(routingTable, clusterState, strategy)
+        return startupCluster(clusterState, strategy)
     }
 
-    fun createRandomIndex(id: String): IndexMetaData.Builder {
+    private fun createRandomIndex(id: String): IndexMetaData.Builder {
         return IndexMetaData
                 .builder("index-${id}")
-                .settings(Settings.builder()
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetaData.SETTING_CREATION_DATE, DateTime().millis))
+                .settings(settings(Version.CURRENT))
                 .numberOfShards(5 + randomInt(100))
                 .numberOfReplicas( randomInt(2))
     }
 
-    fun startupCluster(routingTable: RoutingTable, clusterState: ClusterState, strategy: AllocationService) : Pair<RoutingTable, ClusterState> {
+    private fun startupCluster(initialClusterState: ClusterState, strategy: AllocationService) : ClusterState {
+        var clusterState = strategy.reroute(initialClusterState, "reroute")
 
-        var resultRoutingTable: RoutingTable = routingTable
-        var resultClusterState: ClusterState = clusterState
+        logger.info("Restarting primary shards which causes the replicas to initialise")
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.routingNodes.shardsWithState(ShardRoutingState.INITIALIZING))
 
-        for (attempt in 1..100) {
-            resultRoutingTable = strategy.reroute(resultClusterState, "reroute").routingTable()
-            resultClusterState = ClusterState.builder(resultClusterState).routingTable(resultRoutingTable).build()
+        logger.info("Starting replicas")
+        clusterState = strategy.applyStartedShards(clusterState, clusterState.routingNodes.shardsWithState(ShardRoutingState.INITIALIZING))
 
-            resultRoutingTable = strategy.applyStartedShards(resultClusterState, resultClusterState.routingNodes.shardsWithState(ShardRoutingState.INITIALIZING)).routingTable()
-            resultClusterState = ClusterState.builder(resultClusterState).routingTable(resultRoutingTable).build()
+        logger.info("Rebalancing completed. Waiting until nothing changes")
+        clusterState = applyStartedShardsUntilNoChange(clusterState, strategy)
 
-            if (resultRoutingTable.allShards().all { it.state() == ShardRoutingState.STARTED }) {
-                return Pair(resultRoutingTable, resultClusterState)
-            }
-        }
-
-        fail()
-        throw RuntimeException()
+        return clusterState
     }
 
     private fun assignRandomShardSizes(routingTable: RoutingTable, shardSizes: MutableMap<String, Long>) {
         val shardSizeMap = Maps.mutable.empty<ShardId, Long>()
 
         for (shard in routingTable.allShards()) {
-            val shardSize = shardSizeMap.getIfAbsentPut(shard.shardId(), { Math.exp(20.0 + randomDouble() * 5.0).toLong() })
-            shardSizes.put(shardIdentifierFromRouting(shard), shardSize)
+            val shardSize = shardSizeMap.getIfAbsentPut(shard.shardId()) { exp(20.0 + randomDouble() * 5.0).toLong() }
+            shardSizes[shardIdentifierFromRouting(shard)] = shardSize
         }
     }
 
-    fun shardIdentifierFromRouting(shardRouting: ShardRouting): String {
+    private fun shardIdentifierFromRouting(shardRouting: ShardRouting): String {
         return shardRouting.shardId().toString() + "[" + (if (shardRouting.primary()) "p" else "r") + "]"
     }
 }

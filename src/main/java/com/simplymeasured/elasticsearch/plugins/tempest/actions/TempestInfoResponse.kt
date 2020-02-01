@@ -154,6 +154,7 @@ class TempestInfoResponse: ActionResponse(), StatusToXContentObject {
     }
 
     override fun toXContent(builder: XContentBuilder, params: ToXContent.Params): XContentBuilder {
+        builder.startObject()
         builder.field("lastOptimalBalanceFoundDateTime", lastOptimalBalanceFoundDateTime)
         builder.field("lastBalanceChangeDateTime", lastBalanceChangeDateTime)
         builder.field("lastRebalanceAttemptDateTime", lastRebalanceAttemptDateTime)
@@ -163,6 +164,7 @@ class TempestInfoResponse: ActionResponse(), StatusToXContentObject {
         builder.field("patternMap", patternMapping.toMap() as Map<*, *>)
         builder.field("nodeGroupScores", lastNodeGroupScores as Map<*, *>)
         builder.field("status", status)
+        builder.endObject()
         return builder
     }
 

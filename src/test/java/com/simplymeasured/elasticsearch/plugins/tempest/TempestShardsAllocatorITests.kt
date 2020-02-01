@@ -24,27 +24,34 @@
 
 package com.simplymeasured.elasticsearch.plugins.tempest
 
+import junit.framework.TestCase
 import org.codelibs.elasticsearch.runner.ElasticsearchClusterRunner
+import org.codelibs.elasticsearch.runner.ElasticsearchClusterRunner.newConfigs
+import org.eclipse.collections.impl.factory.Lists
 import org.elasticsearch.common.settings.Settings
+import org.elasticsearch.plugins.Plugin
+import org.elasticsearch.test.ESIntegTestCase
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import java.security.AccessController
+import java.security.PrivilegedAction
 
 /**
  * Created by awhite on 4/15/16.
  */
-class TempestShardsAllocatorITests {
+class TempestShardsAllocatorITests : ESIntegTestCase() {
     private val runner = ElasticsearchClusterRunner()
 
     @Before
     @Throws(Exception::class)
-    fun setUp() {
-        runner.onBuild { index, settingsBuilder ->
+    override fun setUp() {
+        super.setUp()
+        runner.onBuild { _, settingsBuilder ->
             settingsBuilder.put("logger.com.simplymeasured.elasticsearch.plugins.tempest", "DEBUG")
             settingsBuilder.put("logger.org.elasticsearch.cluster.routing.allocation", "DEBUG")
             settingsBuilder.put("tempest.balancer.groupingPatterns", "index-\\w+,index-\\w+-\\d+")
-            
-            settingsBuilder.put("plugin.types", "com.simplymeasured.elasticsearch.plugins.tempest.TempestPlugin")
+
             settingsBuilder.put("cluster.routing.allocation.type", "tempest")
             settingsBuilder.put("cluster.routing.allocation.same_shard.host", false)
             settingsBuilder.put("http.cors.enabled", true)
@@ -52,15 +59,19 @@ class TempestShardsAllocatorITests {
             settingsBuilder.putArray("discovery.zen.ping.unicast.hosts", "localhost:9301-9305")
             settingsBuilder.put("cluster.routing.allocation.disk.watermark.low", "95%")
             settingsBuilder.put("cluster.routing.allocation.disk.watermark.high", "99%")
-        }.build(ElasticsearchClusterRunner.newConfigs().numOfNode(5))
+        }.build(newConfigs()
+                .numOfNode(5)
+                .pluginTypes("com.simplymeasured.elasticsearch.plugins.tempest.TempestPlugin")
+        )
 
         runner.ensureGreen()
     }
 
     @After
-    fun tearDown() {
+    override fun tearDown() {
         runner.close()
         runner.clean()
+        super.tearDown()
     }
 
     @Test
@@ -69,6 +80,8 @@ class TempestShardsAllocatorITests {
         runner.createIndex("index-a", Settings.builder().put("index.number_of_replicas", "2").build())
         runner.createIndex("index-b", Settings.builder().put("index.number_of_replicas", "2").build())
         runner.createIndex("index-c-123", Settings.builder().put("index.number_of_replicas", "2").build())
+
+        runner.ensureGreen("index-a", "index-b", "index-c-123")
 
         while (true) {
         }

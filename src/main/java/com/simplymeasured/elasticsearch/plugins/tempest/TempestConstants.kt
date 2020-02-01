@@ -31,7 +31,6 @@ class TempestConstants {
         val SEARCH_QUEUE_SIZE = "tempest.balancer.searchQueueSize"
         val MINIMUM_SHARD_MOVEMENT_OVERHEAD = "tempest.balancer.minimumShardMovementOverhead"
         val MAXIMUM_ALLOWED_RISK_RATE = "tempest.balancer.maximumAllowedRiskRate"
-        val FORCE_REBALANCE_THRESHOLD_MINUTES = "tempest.balancer.forceRebalanceThresholdMinutes"
         val MINIMUM_NODE_SIZE_CHANGE_RATE = "tempest.balancer.minimumNodeSizeChangeRate"
         val EXPUNGE_BLACKLISTED_NODES = "tempest.balancer.expungeBlacklistedNodes"
         val MAXIMUM_SEARCH_TIME_SECONDS = "tempest.balancer.maxSearchTimeSeconds"

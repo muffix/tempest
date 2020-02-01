@@ -63,8 +63,6 @@ class TempestPlugin(val settings: Settings) : Plugin(), ActionPlugin, ClusterPlu
 
     override fun getSettings(): MutableList<Setting<*>> {
         return Lists.mutable.of(
-                 BalancerConfiguration.CONCURRENT_REBALANCE_SETTING,
-                 BalancerConfiguration.EXCLUDE_GROUP_SETTING,
                  BalancerConfiguration.SEARCH_DEPTH_SETTING,
                  BalancerConfiguration.SEARCH_SCALE_FACTOR_SETTING,
                  BalancerConfiguration.BEST_NQUEUE_SIZE_SETTING,
@@ -74,7 +72,20 @@ class TempestPlugin(val settings: Settings) : Plugin(), ActionPlugin, ClusterPlu
                  BalancerConfiguration.EXPUNGE_BLACKLISTED_NODES_SETTING,
                  BalancerConfiguration.SEARCH_TIME_LIMIT_SECONDS_SETTING,
                  IndexGroupPartitioner.INDEX_GROUP_PATTERN_SETTING,
-                 ShardSizeCalculator.MODEL_AGE_IN_MINUTES_SETTING)
+                 ShardSizeCalculator.MODEL_AGE_IN_MINUTES_SETTING
+        )
+    }
+
+    private fun initWithSettings(settings: Settings, clusterSettings: ClusterSettings) {
+        if (!::balancerConfiguration.isInitialized) {
+            balancerConfiguration = BalancerConfiguration(settings, clusterSettings)
+        }
+        if (!::indexGroupPartitioner.isInitialized) {
+            indexGroupPartitioner = IndexGroupPartitioner(settings, clusterSettings)
+        }
+        if (!::shardSizeCalculator.isInitialized) {
+            shardSizeCalculator = ShardSizeCalculator(settings, clusterSettings, indexGroupPartitioner)
+        }
     }
 
     override fun createComponents(
@@ -85,19 +96,18 @@ class TempestPlugin(val settings: Settings) : Plugin(), ActionPlugin, ClusterPlu
             scriptService: ScriptService,
             xContentRegistry: NamedXContentRegistry): MutableCollection<Any> {
 
-        balancerConfiguration = BalancerConfiguration(settings, clusterService.clusterSettings)
-        indexGroupPartitioner = IndexGroupPartitioner(settings, clusterService.clusterSettings)
-        shardSizeCalculator = ShardSizeCalculator(settings, clusterService.clusterSettings, indexGroupPartitioner)
+        initWithSettings(settings, clusterService.clusterSettings)
         return Lists.mutable.empty()
     }
 
     override fun getShardsAllocators(
             settings: Settings,
             clusterSettings: ClusterSettings): MutableMap<String, Supplier<ShardsAllocator>> {
-        return Maps.mutable.of("tempest", Supplier { buildTempestAllocator(settings) })
+        return Maps.mutable.of("tempest", Supplier { buildTempestAllocator(settings, clusterSettings) })
     }
 
-    private fun buildTempestAllocator(settings: Settings): ShardsAllocator {
+    private fun buildTempestAllocator(settings: Settings, clusterSettings: ClusterSettings): ShardsAllocator {
+        initWithSettings(settings, clusterSettings)
         return TempestShardsAllocator(
                 settings,
                 balancerConfiguration,
