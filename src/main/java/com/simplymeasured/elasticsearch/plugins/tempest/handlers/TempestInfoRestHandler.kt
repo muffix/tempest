@@ -42,10 +42,20 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener
 class TempestInfoRestHandler
 @Inject constructor(settings: Settings,
                     restController: RestController) :
-        BaseRestHandler(settings) {
+        BaseRestHandler() {
 
     init {
         restController.registerHandler(RestRequest.Method.GET, "/_tempest", this)
+    }
+
+    /**
+     * @return the name of this handler. The name should be human readable and
+     *         should describe the action that will performed when this API is
+     *         called. This name is used in the response to the
+     *         {@link RestNodesUsageAction}.
+     */
+    override fun getName(): String {
+        return "Tempest info"
     }
 
     override fun prepareRequest(request: RestRequest, client: NodeClient): RestChannelConsumer {

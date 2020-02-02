@@ -24,8 +24,6 @@
 
 package com.simplymeasured.elasticsearch.plugins.tempest.actions
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder
 import org.elasticsearch.client.ElasticsearchClient
 

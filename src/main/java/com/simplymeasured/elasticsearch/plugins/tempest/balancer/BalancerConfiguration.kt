@@ -25,8 +25,6 @@
 package com.simplymeasured.elasticsearch.plugins.tempest.balancer
 
 import com.simplymeasured.elasticsearch.plugins.tempest.TempestConstants
-import org.elasticsearch.cluster.node.DiscoveryNodeFilters
-import org.elasticsearch.cluster.routing.RoutingNode
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider
 import org.elasticsearch.common.inject.Inject
@@ -44,7 +42,7 @@ class BalancerConfiguration
 @Inject constructor(settings: Settings, clusterSettings: ClusterSettings) {
 
     var concurrentRebalance: Int = CONCURRENT_REBALANCE_SETTING.get(settings)
-    var excludeGroup: Settings = EXCLUDE_GROUP_SETTING.get(settings)
+    var excludeGroup: Map<String, String> = EXCLUDE_GROUP_SETTING.getAsMap(settings)
     var searchDepth: Int = SEARCH_DEPTH_SETTING.get(settings)
     var searchScaleFactor: Int = SEARCH_SCALE_FACTOR_SETTING.get(settings)
     var bestNQueueSize: Int = BEST_NQUEUE_SIZE_SETTING.get(settings)
@@ -56,7 +54,7 @@ class BalancerConfiguration
 
     init {
         clusterSettings.addSettingsUpdateConsumer(CONCURRENT_REBALANCE_SETTING, this::concurrentRebalance.setter)
-        clusterSettings.addSettingsUpdateConsumer(EXCLUDE_GROUP_SETTING, this::excludeGroup.setter)
+        clusterSettings.addAffixMapUpdateConsumer(EXCLUDE_GROUP_SETTING, { filters: Map<String, String> -> this::excludeGroup.setter(filters) }) { _: String?, _: String? -> }
         clusterSettings.addSettingsUpdateConsumer(SEARCH_DEPTH_SETTING, this::searchDepth.setter)
         clusterSettings.addSettingsUpdateConsumer(SEARCH_SCALE_FACTOR_SETTING, this::searchScaleFactor.setter)
         clusterSettings.addSettingsUpdateConsumer(BEST_NQUEUE_SIZE_SETTING, this::bestNQueueSize.setter)
@@ -69,7 +67,7 @@ class BalancerConfiguration
 
     companion object {
         val CONCURRENT_REBALANCE_SETTING: Setting<Int> = CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING
-        val EXCLUDE_GROUP_SETTING: Setting<Settings> = FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING
+        val EXCLUDE_GROUP_SETTING: AffixSetting<String> = FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING
         val SEARCH_DEPTH_SETTING: Setting<Int> = intSetting(TempestConstants.SEARCH_DEPTH, 5, 1, Dynamic, NodeScope)
         val SEARCH_SCALE_FACTOR_SETTING: Setting<Int> = intSetting(TempestConstants.SEARCH_SCALE_FACTOR, 1000, 1, Dynamic, NodeScope)
         val BEST_NQUEUE_SIZE_SETTING: Setting<Int> = intSetting(TempestConstants.SEARCH_QUEUE_SIZE, 10, 1, Dynamic, NodeScope)

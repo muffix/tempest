@@ -25,6 +25,8 @@
 package com.simplymeasured.elasticsearch.plugins.tempest.balancer
 
 import com.simplymeasured.elasticsearch.plugins.tempest.TempestConstants
+import org.apache.logging.log4j.LogManager
+import org.apache.logging.log4j.Logger
 import org.eclipse.collections.api.RichIterable
 import org.eclipse.collections.api.list.ListIterable
 import org.eclipse.collections.api.map.MapIterable
@@ -35,9 +37,7 @@ import org.eclipse.collections.impl.tuple.Tuples
 import org.eclipse.collections.impl.utility.LazyIterate
 import org.elasticsearch.cluster.metadata.IndexMetaData
 import org.elasticsearch.cluster.metadata.MetaData
-import org.elasticsearch.common.component.AbstractComponent
 import org.elasticsearch.common.inject.Inject
-import org.elasticsearch.common.logging.Loggers
 import org.elasticsearch.common.settings.ClusterSettings
 import org.elasticsearch.common.settings.Setting
 import org.elasticsearch.common.settings.Setting.Property.*
@@ -52,10 +52,10 @@ import javax.swing.UIManager.put
 open class IndexGroupPartitioner
 @Inject constructor(
         settings: Settings,
-        clusterSettings: ClusterSettings) : AbstractComponent(settings) {
-
+        clusterSettings: ClusterSettings){
     companion object {
         var INDEX_GROUP_PATTERN_SETTING: Setting<String> = Setting.simpleString(TempestConstants.GROUPING_PATTERNS, NodeScope, Dynamic)
+        var logger: Logger = LogManager.getLogger(this::class.java.name)
     }
 
     // commas aren't perfect here since they can legally be defined in regexes but it seems reasonable for now;
@@ -82,7 +82,7 @@ open class IndexGroupPartitioner
         return try {
             Pattern.compile(it)
         } catch(e: PatternSyntaxException) {
-            logger.warn("failed to compile group pattern ${it}")
+            logger.warn("failed to compile group pattern $it")
             null
         }
     }

@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.routing.ShardRouting
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator
-import org.elasticsearch.common.component.AbstractComponent
 import org.elasticsearch.common.inject.Inject
 import org.elasticsearch.common.inject.Singleton
 import org.elasticsearch.common.settings.Settings
@@ -47,11 +46,11 @@ import java.util.*
 
 @Singleton
 class TempestShardsAllocator
-    @Inject constructor(settings: Settings,
+    @Inject constructor(val settings: Settings,
                         val balancerConfiguration: BalancerConfiguration,
                         val indexGroupPartitioner: IndexGroupPartitioner,
                         val shardSizeCalculator: ShardSizeCalculator) :
-        AbstractComponent(settings), ShardsAllocator {
+        ShardsAllocator {
 
     var lastRebalanceAttemptDateTime: DateTime = DateTime(0)
     var lastBalanceChangeDateTime: DateTime = DateTime(0)

@@ -88,18 +88,6 @@ class TempestPlugin(val settings: Settings) : Plugin(), ActionPlugin, ClusterPlu
         }
     }
 
-    override fun createComponents(
-            client: Client,
-            clusterService: ClusterService,
-            threadPool: ThreadPool,
-            resourceWatcherService: ResourceWatcherService,
-            scriptService: ScriptService,
-            xContentRegistry: NamedXContentRegistry): MutableCollection<Any> {
-
-        initWithSettings(settings, clusterService.clusterSettings)
-        return Lists.mutable.empty()
-    }
-
     override fun getShardsAllocators(
             settings: Settings,
             clusterSettings: ClusterSettings): MutableMap<String, Supplier<ShardsAllocator>> {
@@ -131,7 +119,8 @@ class TempestPlugin(val settings: Settings) : Plugin(), ActionPlugin, ClusterPlu
 
     override fun getActions(): MutableList<ActionPlugin.ActionHandler<out ActionRequest, out ActionResponse>> {
         return Lists.mutable.of(
-            ActionPlugin.ActionHandler(TempestInfoAction.INSTANCE, TransportTempestInfoAction::class.java))
+            ActionPlugin.ActionHandler(TempestInfoAction.INSTANCE, TransportTempestInfoAction::class.java)
+        )
     }
 }
 

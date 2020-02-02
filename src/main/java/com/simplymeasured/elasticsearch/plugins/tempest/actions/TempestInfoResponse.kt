@@ -32,17 +32,14 @@ import org.eclipse.collections.impl.factory.Multimaps
 import org.eclipse.collections.impl.factory.Sets
 import org.eclipse.collections.impl.list.fixed.ArrayAdapter
 import org.elasticsearch.action.ActionResponse
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput
-import org.elasticsearch.common.io.stream.BytesStreamOutput
-import org.elasticsearch.common.io.stream.StreamInput
-import org.elasticsearch.common.io.stream.StreamOutput
+import org.elasticsearch.common.io.stream.*
 import org.elasticsearch.common.xcontent.StatusToXContentObject
 import org.elasticsearch.common.xcontent.ToXContent
 import org.elasticsearch.common.xcontent.XContentBuilder
 import org.elasticsearch.rest.RestStatus
 import org.joda.time.DateTime
 
-class TempestInfoResponse: ActionResponse(), StatusToXContentObject {
+class TempestInfoResponse: ActionResponse(), StatusToXContentObject, Writeable.Reader<TempestInfoResponse> {
     companion object {
         val CURRENT_MODEL_VERSION = 2
     }
@@ -58,11 +55,13 @@ class TempestInfoResponse: ActionResponse(), StatusToXContentObject {
 
     var status: String = "unknown"
 
-    override fun readFrom(inputStream: StreamInput) {
-        inputStream.readByteArray()
-                   .let { java.nio.ByteBuffer.wrap(it) }
-                   .let(::ByteBufferStreamInput)
-                   .apply { internalReadFrom(this) }
+    override fun read(inputStream: StreamInput?): TempestInfoResponse {
+        return this.apply {
+            inputStream?.readByteArray()
+                    .let { java.nio.ByteBuffer.wrap(it) }
+                    .let(::ByteBufferStreamInput)
+                    .apply { internalReadFrom(this) }
+        }
     }
 
     private fun internalReadFrom(inputStream: StreamInput) {

@@ -24,25 +24,20 @@
 
 package com.simplymeasured.elasticsearch.plugins.tempest.actions
 
-import org.elasticsearch.action.Action
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction
-import org.elasticsearch.client.ElasticsearchClient
+import org.elasticsearch.action.ActionType
+import org.elasticsearch.common.settings.Settings
+import org.elasticsearch.transport.TransportRequestOptions
+
 
 /**
  * Action definition for tempest info
  */
-class TempestInfoAction:
-        Action<TempestInfoRequest, TempestInfoResponse, TempestInfoRequestBuilder>(NAME) {
+class TempestInfoAction: ActionType<TempestInfoResponse>(NAME, TempestInfoResponse()) {
 
     companion object {
         val INSTANCE = TempestInfoAction()
-        val NAME = "cluster:monitor/tempest"
+        const val NAME = "cluster:monitor/tempest"
     }
 
-    override fun newResponse(): TempestInfoResponse = TempestInfoResponse()
-
-    override fun newRequestBuilder(client: ElasticsearchClient): TempestInfoRequestBuilder {
-        return TempestInfoRequestBuilder(client, this)
-    }
 }
 

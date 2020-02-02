@@ -30,13 +30,12 @@ import com.simplymeasured.elasticsearch.plugins.tempest.balancer.ShardSizeCalcul
 import org.elasticsearch.action.ActionListener
 import org.elasticsearch.action.support.ActionFilters
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction
-import org.elasticsearch.cluster.ClusterInfoService
 import org.elasticsearch.cluster.ClusterState
 import org.elasticsearch.cluster.block.ClusterBlockException
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver
 import org.elasticsearch.cluster.service.ClusterService
 import org.elasticsearch.common.inject.Inject
-import org.elasticsearch.common.settings.Settings
+import org.elasticsearch.common.io.stream.StreamInput
 import org.elasticsearch.threadpool.ThreadPool
 import org.elasticsearch.transport.TransportService
 
@@ -44,32 +43,27 @@ import org.elasticsearch.transport.TransportService
  * TransportAction that provides stats about tempest
  */
 class TransportTempestInfoAction
-    @Inject constructor(settings: Settings,
-                        actionName: String,
-                        transportService: TransportService,
-                        clusterService: ClusterService,
-                        val clusterInfoService: ClusterInfoService,
-                        val tempestAllocator: TempestShardsAllocator,
-                        val indexGroupPartitioner: IndexGroupPartitioner,
-                        val shardSizeCalculator: ShardSizeCalculator,
-                        threadPool: ThreadPool,
-                        actionFilters: ActionFilters,
-                        indexNameExpressionResolver: IndexNameExpressionResolver):
+@Inject constructor(actionName: String,
+                    transportService: TransportService,
+                    clusterService: ClusterService,
+                    val tempestAllocator: TempestShardsAllocator,
+                    val indexGroupPartitioner: IndexGroupPartitioner,
+                    val shardSizeCalculator: ShardSizeCalculator,
+                    threadPool: ThreadPool,
+                    actionFilters: ActionFilters,
+                    indexNameExpressionResolver: IndexNameExpressionResolver) :
         TransportMasterNodeReadAction<TempestInfoRequest, TempestInfoResponse>(
-                settings,
                 actionName,
                 transportService,
                 clusterService,
                 threadPool,
                 actionFilters,
-                indexNameExpressionResolver,
-                ::TempestInfoRequest) {
+                { TempestInfoRequest() },
+                indexNameExpressionResolver) {
 
     override fun executor(): String = ThreadPool.Names.SAME
 
     override fun checkBlock(request: TempestInfoRequest?, state: ClusterState?): ClusterBlockException? = null
-
-    override fun newResponse(): TempestInfoResponse = TempestInfoResponse()
 
     override fun masterOperation(request: TempestInfoRequest, state: ClusterState, listener: ActionListener<TempestInfoResponse>) {
         val response = TempestInfoResponse()
@@ -82,6 +76,12 @@ class TransportTempestInfoAction
         response.status = tempestAllocator.status
         response.lastNodeGroupScores = tempestAllocator.lastNodeGroupScores
         listener.onResponse(response)
+    }
+
+    override fun read(input: StreamInput?): TempestInfoResponse {
+        val resp = TempestInfoResponse()
+        resp.read(input)
+        return resp
     }
 
 }

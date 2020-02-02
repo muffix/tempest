@@ -30,7 +30,7 @@
 
     <groupId>com.simplymeasured.elasticsearch.plugins</groupId>
     <artifactId>tempest</artifactId>
-    <version>3.0.0-ES${elasticsearch.version}</version>
+    <version>5.0.0-ES${elasticsearch.version}</version>
 
     <licenses>
         <license>
@@ -41,7 +41,7 @@
 
     <properties>
         <kotlin.version>1.2.10</kotlin.version>
-        <elasticsearch.version>5.6.10</elasticsearch.version>
+        <elasticsearch.version>7.5.2</elasticsearch.version>
     </properties>
 
     <dependencies>
@@ -92,10 +92,6 @@
                 <exclusion>
                     <artifactId>jna</artifactId>
                     <groupId>net.java.dev.jna</groupId>
-                </exclusion>
-                <exclusion>
-                    <artifactId>asm-debug-all</artifactId>
-                    <groupId>org.ow2.asm</groupId>
                 </exclusion>
             </exclusions>
         </dependency>

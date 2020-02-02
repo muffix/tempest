@@ -48,12 +48,11 @@ import org.elasticsearch.common.collect.ImmutableOpenMap
 import org.elasticsearch.common.settings.ClusterSettings
 import org.elasticsearch.common.settings.Settings
 import org.elasticsearch.index.shard.ShardId
-import org.elasticsearch.test.gateway.NoopGatewayAllocator
+import org.elasticsearch.test.gateway.TestGatewayAllocator
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.Mockito.mock
-import org.mockito.stubbing.Answer
 import java.security.AccessController
 import java.security.PrivilegedAction
 import kotlin.math.exp
@@ -101,11 +100,13 @@ class TempestShardsAllocatorTests : ESAllocationTestCase() {
         val indexGroupPartitioner = IndexGroupPartitioner(settings, mockClusterSettings)
         val shardSizeCalculator = ShardSizeCalculator(settings, mockClusterSettings, indexGroupPartitioner)
         val balancerConfiguration = BalancerConfiguration(settings, mockClusterSettings)
-        Mockito.`when`(mockClusterInfoService.clusterInfo).then { ClusterInfo(
-                ImmutableOpenMap.of<String, DiskUsage>(),
-                ImmutableOpenMap.of<String, DiskUsage>(),
-                ImmutableOpenMap.builder<String, Long>().putAll(shardSizes).build(),
-                ImmutableOpenMap.of<ShardRouting, String>()) }
+        Mockito.`when`(mockClusterInfoService.clusterInfo).then {
+            ClusterInfo(
+                    ImmutableOpenMap.of<String, DiskUsage>(),
+                    ImmutableOpenMap.of<String, DiskUsage>(),
+                    ImmutableOpenMap.builder<String, Long>().putAll(shardSizes).build(),
+                    ImmutableOpenMap.of<ShardRouting, String>())
+        }
 
         val tempestShardsAllocator = TempestShardsAllocator(
                 settings = settings,
@@ -114,9 +115,8 @@ class TempestShardsAllocatorTests : ESAllocationTestCase() {
                 shardSizeCalculator = shardSizeCalculator)
 
         val strategy = MockAllocationService(
-                settings,
                 randomAllocationDeciders(settings, mockClusterSettings, getRandom()),
-                NoopGatewayAllocator.INSTANCE,
+                TestGatewayAllocator(),
                 tempestShardsAllocator,
                 mockClusterInfoService)
 
@@ -130,7 +130,10 @@ class TempestShardsAllocatorTests : ESAllocationTestCase() {
         clusterState = strategy.reroute(clusterState, "reroute")
 
         while (clusterState.routingNodes.shardsWithState(ShardRoutingState.INITIALIZING).isNotEmpty()) {
-            clusterState = strategy.applyStartedShards(clusterState, clusterState.routingNodes.shardsWithState(ShardRoutingState.INITIALIZING))
+            clusterState = strategy.reroute(
+                    strategy.applyStartedShards(clusterState, clusterState.routingNodes.shardsWithState(ShardRoutingState.INITIALIZING)),
+                    "reroute"
+            )
             println(tempestShardsAllocator.lastClusterBalanceScore)
         }
     }
@@ -139,7 +142,7 @@ class TempestShardsAllocatorTests : ESAllocationTestCase() {
 
         val indexes = (1..(5 + randomInt(5))).map { createRandomIndex(Integer.toHexString(it)) }
         val metaData = MetaData.builder().apply { indexes.forEach { this.put(it) } }.build()
-        val routingTable = RoutingTable.builder().apply { indexes.forEach { this.addAsNew(metaData.index(it.index())) } }.build()
+        val routingTable = RoutingTable.builder().apply { metaData.indices.forEach { this.addAsNew(it.value) } }.build()
 
         val clusterState = ClusterState.builder(
                 ClusterName.DEFAULT)
@@ -156,10 +159,10 @@ class TempestShardsAllocatorTests : ESAllocationTestCase() {
                 .builder("index-${id}")
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(5 + randomInt(100))
-                .numberOfReplicas( randomInt(2))
+                .numberOfReplicas(randomInt(2))
     }
 
-    private fun startupCluster(initialClusterState: ClusterState, strategy: AllocationService) : ClusterState {
+    private fun startupCluster(initialClusterState: ClusterState, strategy: AllocationService): ClusterState {
         var clusterState = strategy.reroute(initialClusterState, "reroute")
 
         logger.info("Restarting primary shards which causes the replicas to initialise")

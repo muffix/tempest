@@ -38,16 +38,16 @@ import org.elasticsearch.common.settings.Settings
  * Note: Index awareness is not not implemented. Node awareness should be fully supported.
  */
 class MockFilterAllocationDecider(settings: Settings) : MockDecider {
-    private val clusterRequireFilters: DiscoveryNodeFilters? = CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.get(settings).let { DiscoveryNodeFilters.buildFromKeyValue(AND, it.asMap) }
-    private val clusterIncludeFilters: DiscoveryNodeFilters? = CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.get(settings).let { DiscoveryNodeFilters.buildFromKeyValue(OR, it.asMap) }
-    private val clusterExcludeFilters: DiscoveryNodeFilters? = CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.get(settings).let { DiscoveryNodeFilters.buildFromKeyValue(OR, it.asMap) }
+    private val clusterRequireFilters: DiscoveryNodeFilters? = DiscoveryNodeFilters.buildFromKeyValue(AND, CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings))
+    private val clusterIncludeFilters: DiscoveryNodeFilters? = DiscoveryNodeFilters.buildFromKeyValue(OR, CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings))
+    private val clusterExcludeFilters: DiscoveryNodeFilters? = DiscoveryNodeFilters.buildFromKeyValue(OR, CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings))
 
     override fun canAllocate(shard: ModelShard, destNode: ModelNode): Boolean {
-        when {
-            clusterExcludeFilters?.match(destNode.backingNode.node()) == true -> return false
-            clusterIncludeFilters?.match(destNode.backingNode.node()) == false -> return false
-            clusterRequireFilters?.match(destNode.backingNode.node()) == false -> return false
-            else -> return true
+        return when {
+            clusterExcludeFilters?.match(destNode.backingNode.node()) == true -> false
+            clusterIncludeFilters?.match(destNode.backingNode.node()) == false -> false
+            clusterRequireFilters?.match(destNode.backingNode.node()) == false -> false
+            else -> true
         }
     }
 

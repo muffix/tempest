@@ -12,10 +12,14 @@ import org.elasticsearch.rest.*
 class TempestRebalanceRestHandler
 @Inject constructor(settings: Settings,
                     restController: RestController) :
-        BaseRestHandler(settings) {
+        BaseRestHandler() {
 
     init {
         restController.registerHandler(RestRequest.Method.POST, "/_tempest/rebalance", this)
+    }
+
+    override fun getName(): String {
+        return "Rebalancing with Tempest"
     }
 
     override fun prepareRequest(request: RestRequest, client: NodeClient): RestChannelConsumer {

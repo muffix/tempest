@@ -25,7 +25,6 @@
 package com.simplymeasured.elasticsearch.plugins.tempest.actions
 
 import org.elasticsearch.action.ActionRequestValidationException
-import org.elasticsearch.action.GenericAction
 import org.elasticsearch.action.support.master.MasterNodeReadRequest
 
 class TempestInfoRequest: MasterNodeReadRequest<TempestInfoRequest>() {

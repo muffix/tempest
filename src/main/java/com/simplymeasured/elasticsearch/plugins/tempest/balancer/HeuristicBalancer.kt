@@ -28,6 +28,8 @@ import com.simplymeasured.elasticsearch.plugins.tempest.balancer.model.*
 import com.simplymeasured.elasticsearch.plugins.tempest.balancer.model.MockDeciders.sameNodeDecider
 import com.simplymeasured.elasticsearch.plugins.tempest.balancer.model.MockDeciders.shardIdAlreadyMoving
 import com.simplymeasured.elasticsearch.plugins.tempest.balancer.model.MockDeciders.shardStateDecider
+import org.apache.logging.log4j.LogManager
+import org.apache.logging.log4j.Logger
 import org.eclipse.collections.api.LazyIterable
 import org.eclipse.collections.api.list.ListIterable
 import org.eclipse.collections.api.list.MutableList
@@ -43,7 +45,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders
 import org.elasticsearch.cluster.routing.allocation.decider.Decision
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider
-import org.elasticsearch.common.component.AbstractComponent
 import org.elasticsearch.common.settings.Settings
 import org.elasticsearch.index.shard.ShardId
 import java.lang.Math.abs
@@ -60,7 +61,7 @@ class HeuristicBalancer(settings: Settings,
                         val balancerConfiguration: BalancerConfiguration,
                         val allocation: RoutingAllocation,
                         val preApprovedMoveDescriptionBatches: ListIterable<ListIterable<MoveDescription>> = Lists.immutable.empty(),
-                        val random: Random) : AbstractComponent(settings) {
+                        val random: Random) {
 
     private val routingNodes: RoutingNodes = allocation.routingNodes()
     private val deciders: AllocationDeciders = allocation.deciders()
@@ -88,6 +89,8 @@ class HeuristicBalancer(settings: Settings,
     }
 
     companion object {
+        var logger: Logger = LogManager.getLogger(this::class.java)
+
         fun buildModelCluster(
                 routingNodes: RoutingNodes,
                 metaData: MetaData,
@@ -139,8 +142,7 @@ class HeuristicBalancer(settings: Settings,
         }
 
         private fun buildBlacklistFilter(settings: Settings): (RoutingNode) -> Boolean =
-                FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.get(settings)
-                        .let { settings.asMap }
+                FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings)
                         .let {
                             if (it.isEmpty()) return { _ -> false }
                             DiscoveryNodeFilters.buildFromKeyValue(OR, it)

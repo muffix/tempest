@@ -26,6 +26,8 @@ package com.simplymeasured.elasticsearch.plugins.tempest.balancer
 
 import com.simplymeasured.elasticsearch.plugins.tempest.TempestConstants
 import com.simplymeasured.elasticsearch.plugins.tempest.balancer.IndexSizingGroup.*
+import org.apache.logging.log4j.LogManager
+import org.apache.logging.log4j.Logger
 import org.eclipse.collections.api.RichIterable
 import org.eclipse.collections.api.list.MutableList
 import org.eclipse.collections.api.map.MapIterable
@@ -39,7 +41,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData
 import org.elasticsearch.cluster.metadata.MetaData
 import org.elasticsearch.cluster.routing.ShardRouting
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation
-import org.elasticsearch.common.component.AbstractComponent
 import org.elasticsearch.common.inject.Inject
 import org.elasticsearch.common.settings.ClusterSettings
 import org.elasticsearch.common.settings.Setting
@@ -66,14 +67,14 @@ import org.joda.time.DateTime
  * Note, any indexes not matching a pattern are placed into a "default" group
  */
 class ShardSizeCalculator
-    @Inject constructor(
+@Inject constructor(
         settings: Settings,
         clusterSettings: ClusterSettings,
-        private val indexGroupPartitioner: IndexGroupPartitioner)
-    : AbstractComponent(settings) {
+        private val indexGroupPartitioner: IndexGroupPartitioner) {
 
     companion object {
-        val MODEL_AGE_IN_MINUTES_SETTING = Setting.intSetting(TempestConstants.MODEL_AGE_MINUTES, 60*12, 0, NodeScope, Dynamic)
+        val MODEL_AGE_IN_MINUTES_SETTING = Setting.intSetting(TempestConstants.MODEL_AGE_MINUTES, 60 * 12, 0, NodeScope, Dynamic)
+        var logger: Logger = LogManager.getLogger(this::class)
     }
 
     private var modelAgeInMinutes = MODEL_AGE_IN_MINUTES_SETTING.get(settings)
@@ -82,9 +83,9 @@ class ShardSizeCalculator
         clusterSettings.addSettingsUpdateConsumer(MODEL_AGE_IN_MINUTES_SETTING, this::modelAgeInMinutes.setter)
     }
 
-    fun buildShardSizeInfo(allocation: RoutingAllocation) : MapIterable<ShardId, ShardSizeInfo> {
+    fun buildShardSizeInfo(allocation: RoutingAllocation): MapIterable<ShardId, ShardSizeInfo> {
         val shards = LazyIterate.concatenate(
-                allocation.routingNodes().flatMap { it },
+                allocation.routingNodes().flatten(),
                 allocation.routingNodes().unassigned())
 
         val indexSizingGroupMap = buildIndexGroupMap(allocation.metaData())
@@ -93,7 +94,7 @@ class ShardSizeCalculator
                 .groupBy { it.shardId() }
                 .toMap()
                 .keyValuesView()
-                .collect { pair(it.one, it.two.collect { buildShardSizingInfo(allocation, it, indexSizingGroupMap) })}
+                .collect { pair(it.one, it.two.collect { buildShardSizingInfo(allocation, it, indexSizingGroupMap) }) }
                 .toMap({ it.one }, { it.two.maxBy { it.estimatedSize } })
     }
 
@@ -109,7 +110,7 @@ class ShardSizeCalculator
     private fun buildIndexGroupMap(metaData: MetaData): MapIterable<String, IndexSizingGroup> {
         val modelTimestampThreshold = DateTime().minusMinutes(modelAgeInMinutes)
         val indexGroups = indexGroupPartitioner.partition(metaData)
-        val indexSizingGroups = FastList.newWithNValues(indexGroups.size(), {IndexSizingGroup()})
+        val indexSizingGroups = FastList.newWithNValues(indexGroups.size()) { IndexSizingGroup() }
 
         return Maps.mutable.empty<String, IndexSizingGroup>().apply {
             metaData.forEach { indexMetaData ->
@@ -130,7 +131,7 @@ class ShardSizeCalculator
     private fun estimateShardSize(
             routingAllocation: RoutingAllocation,
             indexSizingGroup: IndexSizingGroup,
-            shardRouting: ShardRouting) : Long {
+            shardRouting: ShardRouting): Long {
 
         return arrayOf(routingAllocation.clusterInfo().getShardSize(shardRouting) ?: 0,
                 shardRouting.expectedShardSize,
@@ -152,7 +153,7 @@ class ShardSizeCalculator
                 // from a dead node. In those cases we need to "guess" the size by looking at started replicas with the
                 // same shard id on that index
                 return Math.max(routingAllocation.clusterInfo().getShardSize(shardRouting) ?: 0,
-                                routingAllocation.findLargestReplicaSize(shardRouting))
+                        routingAllocation.findLargestReplicaSize(shardRouting))
             !indexSizingGroup.hasModelIndexes() ->
                 // it's possible for a newly created index to have no models (or for older versions of the index to be
                 // nuked). In these cases the best guess we have is the actual shard size
@@ -162,21 +163,21 @@ class ShardSizeCalculator
                 // look alike. So we want to use the older indexes as a "guess" to the new size. Note that we do an
                 // average just in case multiple models exists (rare but useful)
                 return indexSizingGroup.modelIndexes
-                    .map { routingAllocation.findLargestShardSizeById(it.index.name, shardRouting.id) }
-                    .average()
-                    .toLong()
+                        .map { routingAllocation.findLargestShardSizeById(it.index.name, shardRouting.id) }
+                        .average()
+                        .toLong()
             else ->
                 // this is a less ideal case where we see a new index with no good model to fall back on. We can still
                 // make an educated guess on the shard size by averaging the size of the shards in the models
                 return indexSizingGroup.modelIndexes
-                    .flatMap { routingAllocation.routingTable().index(it.index).shards.values() }
-                    .map { routingAllocation.findLargestShardSizeById(it.value.shardId().index.name, it.value.shardId.id) }
-                    .average()
-                    .toLong()
+                        .flatMap { routingAllocation.routingTable().index(it.index).shards.values() }
+                        .map { routingAllocation.findLargestShardSizeById(it.value.shardId().index.name, it.value.shardId.id) }
+                        .average()
+                        .toLong()
         }
     }
 
-    fun youngIndexes(metaData: MetaData) : RichIterable<String> =
+    fun youngIndexes(metaData: MetaData): RichIterable<String> =
             buildIndexGroupMap(metaData)
                     .valuesView()
                     .toSet()
@@ -186,7 +187,7 @@ class ShardSizeCalculator
 
 
 // considers both primaries and replicas in order to worst case scenario for shard size estimation
-fun RoutingAllocation.findLargestShardSizeById(index: String, id: Int) : Long =
+fun RoutingAllocation.findLargestShardSizeById(index: String, id: Int): Long =
         routingTable()
                 .index(index)
                 .shard(id)
@@ -215,7 +216,8 @@ class IndexSizingGroup {
     fun isHomogeneous(): Boolean {
         val allIndexes = allIndexes()
 
-        if (allIndexes.isEmpty) { return false; }
+        if (allIndexes.isEmpty) {
+            return false; }
         val value = allIndexes.first.numberOfShards
         return allIndexes.all { it.numberOfShards == value }
     }
